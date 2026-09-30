@@ -42,6 +42,7 @@ package "Core Entities" {
     + setState(state : InvoiceState) : void
     + getState() : InvoiceState
     + nextState() : void
+    + checkOverdue(currentDate : LocalDate) : void
     + setBillingStrategy(strategy : BillingStrategy) : void
     + getTotal() : double
   }

@@ -1,0 +1,83 @@
+@startuml sequence-state-transition
+title Invoice Status Transition
+
+actor Freelancer
+participant "invoice : Invoice" as inv
+participant ": DraftState" as draft
+participant ": SentState" as sent
+participant ": OverdueState" as overdue
+participant ": PaidState" as paid
+
+== 1. Invoice starts in DraftState ==
+create inv
+Freelancer -> inv : new Invoice(id, issueDate, dueDate, project)
+activate inv
+create draft
+inv -> draft : new DraftState()
+inv --> Freelancer : invoice
+deactivate inv
+
+== 2. Mark as sent ==
+Freelancer -> inv : nextState()
+activate inv
+inv -> draft : next(this)
+activate draft
+create sent
+draft -> sent : new SentState()
+draft -> inv : setState(sent)
+draft --> inv
+deactivate draft
+inv --> Freelancer
+deactivate inv
+
+== 3. Overdue check ==
+opt currentDate > dueDate and invoice not paid
+  [-> inv : checkOverdue(currentDate)
+  activate inv
+  create overdue
+  inv -> overdue : new OverdueState()
+  inv -> inv : setState(overdue)
+  deactivate inv
+end
+
+== 4. Client pays ==
+Freelancer -> inv : nextState()
+activate inv
+alt current state is SentState
+  inv -> sent : next(this)
+  activate sent
+  sent -> paid : <<create>> new PaidState()
+  sent -> inv : setState(paid)
+  sent --> inv
+  deactivate sent
+else current state is OverdueState
+  inv -> overdue : next(this)
+  activate overdue
+  overdue -> paid : <<create>> new PaidState()
+  overdue -> inv : setState(paid)
+  overdue --> inv
+  deactivate overdue
+end
+inv --> Freelancer
+deactivate inv
+
+== 5. nextState() called again ==
+Freelancer -> inv : nextState()
+activate inv
+alt current state is PaidState (terminal)
+  inv -> paid : next(this)
+  activate paid
+  paid --> inv : throw IllegalStateException
+  deactivate paid
+  inv --> Freelancer : transition rejected, stays in PaidState
+else current state is not terminal
+  note over inv
+    Delegates to the current state,
+    which moves the invoice forward
+    (as in steps 2 and 4)
+  end note
+  inv --> Freelancer
+end
+deactivate inv
+
+@enduml

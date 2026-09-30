@@ -1,0 +1,68 @@
+@startuml sequence-create-invoice
+title Create Invoice and Compute Total
+
+actor Freelancer
+participant "invoice : Invoice" as inv
+participant "strategy : HourlyStrategy" as strat
+participant "state : InvoiceState" as state
+participant "decorated : LateFeeDecorator" as lfd
+
+== 1. Create invoice and set billing strategy ==
+create inv
+Freelancer -> inv : new Invoice(id, issueDate, dueDate, project)
+activate inv
+create state
+inv -> state : new DraftState()
+inv --> Freelancer : invoice
+deactivate inv
+
+create strat
+Freelancer -> strat : new HourlyStrategy(hourlyRate, hoursLogged)
+Freelancer -> inv : setBillingStrategy(strategy)
+
+== 2. Compute base total ==
+Freelancer -> inv : getTotal()
+activate inv
+inv -> strat : calculateTotal()
+activate strat
+strat --> inv : baseAmount
+deactivate strat
+inv --> Freelancer : baseAmount
+deactivate inv
+
+== 3. Check whether a late fee can be applied ==
+Freelancer -> inv : getState()
+activate inv
+inv --> Freelancer : state
+deactivate inv
+Freelancer -> state : canApplyDecorator()
+activate state
+state --> Freelancer : allowed
+deactivate state
+
+== 4. Apply late fee (if allowed) ==
+alt allowed == true
+  create lfd
+  Freelancer -> lfd : new LateFeeDecorator(invoice, feeAmount)
+  Freelancer -> lfd : getTotal()
+  activate lfd
+  lfd -> inv : getTotal()
+  activate inv
+  inv -> strat : calculateTotal()
+  activate strat
+  strat --> inv : baseAmount
+  deactivate strat
+  inv --> lfd : baseAmount
+  deactivate inv
+  lfd -> lfd : finalTotal = baseAmount + feeAmount
+  lfd --> Freelancer : finalTotal
+  deactivate lfd
+else allowed == false
+  note over Freelancer, inv
+    Decorator is not applied: the current state
+    does not allow a late fee. The total stays
+    baseAmount from step 2.
+  end note
+end
+
+@enduml
