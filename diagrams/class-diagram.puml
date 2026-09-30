@@ -1,0 +1,174 @@
+@startuml class-diagram
+title Freelance Invoice Tracker - Class Diagram (Draft)
+
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam linetype ortho
+hide empty members
+
+' =========================
+' Core Entities
+' =========================
+package "Core Entities" {
+  class Client {
+    - id : int
+    - name : String
+    - email : String
+    + getId() : int
+    + getName() : String
+    + getEmail() : String
+  }
+
+  class Project {
+    - id : int
+    - name : String
+    - client : Client
+    + getId() : int
+    + getName() : String
+    + getClient() : Client
+  }
+
+  class Invoice {
+    - id : int
+    - issueDate : LocalDate
+    - dueDate : LocalDate
+    - project : Project
+    - state : InvoiceState
+    - billingStrategy : BillingStrategy
+    + getId() : int
+    + getIssueDate() : LocalDate
+    + getDueDate() : LocalDate
+    + getProject() : Project
+    + setState(state : InvoiceState) : void
+    + getState() : InvoiceState
+    + nextState() : void
+    + setBillingStrategy(strategy : BillingStrategy) : void
+    + getTotal() : double
+  }
+}
+
+' =========================
+' Factory Pattern
+' =========================
+package "Factory Pattern" {
+  class EntityFactory {
+    + createClient(id : int, name : String, email : String) : Client
+    + createProject(id : int, name : String, client : Client) : Project
+  }
+}
+
+' =========================
+' State Pattern
+' =========================
+package "State Pattern" {
+  interface InvoiceState <<interface>> {
+    + next(invoice : Invoice) : void
+    + canApplyDecorator() : boolean
+  }
+
+  class DraftState {
+    + next(invoice : Invoice) : void
+    + canApplyDecorator() : boolean
+  }
+
+  class SentState {
+    + next(invoice : Invoice) : void
+    + canApplyDecorator() : boolean
+  }
+
+  class PaidState {
+    + next(invoice : Invoice) : void
+    + canApplyDecorator() : boolean
+  }
+
+  class OverdueState {
+    + next(invoice : Invoice) : void
+    + canApplyDecorator() : boolean
+  }
+}
+
+' =========================
+' Strategy Pattern
+' =========================
+package "Strategy Pattern" {
+  interface BillingStrategy <<interface>> {
+    + calculateTotal() : double
+  }
+
+  class HourlyStrategy {
+    - hourlyRate : double
+    - hoursLogged : double
+    + calculateTotal() : double
+  }
+
+  class FixedStrategy {
+    - fixedAmount : double
+    + calculateTotal() : double
+  }
+
+  class RetainerStrategy {
+    - monthlyRate : double
+    + calculateTotal() : double
+  }
+}
+
+' =========================
+' Decorator Pattern
+' =========================
+package "Decorator Pattern" {
+  interface InvoiceComponent <<interface>> {
+    + getTotal() : double
+  }
+
+  abstract class InvoiceDecorator {
+    # wrapped : InvoiceComponent
+    + InvoiceDecorator(wrapped : InvoiceComponent)
+    + getTotal() : double
+  }
+
+  class LateFeeDecorator {
+    - feeAmount : double
+    + LateFeeDecorator(wrapped : InvoiceComponent, feeAmount : double)
+    + getTotal() : double
+  }
+
+  class DiscountDecorator {
+    - discountPercent : double
+    + DiscountDecorator(wrapped : InvoiceComponent, discountPercent : double)
+    + getTotal() : double
+  }
+}
+
+' =========================
+' Relationships
+' =========================
+
+' Core relationships (aggregation)
+Client "1" o-- "0..*" Project : has >
+Project "1" o-- "0..*" Invoice : has >
+
+' Factory: creates but does not own
+EntityFactory ..> Client : <<create>>
+EntityFactory ..> Project : <<create>>
+
+' State: Invoice owns its state (composition)
+Invoice *-- "1" InvoiceState : state
+InvoiceState <|.. DraftState
+InvoiceState <|.. SentState
+InvoiceState <|.. PaidState
+InvoiceState <|.. OverdueState
+
+' Strategy: strategy can be shared across invoices (aggregation)
+Invoice "0..*" o-- "1" BillingStrategy : billingStrategy
+BillingStrategy <|.. HourlyStrategy
+BillingStrategy <|.. FixedStrategy
+BillingStrategy <|.. RetainerStrategy
+
+' Decorator: Invoice is the base component, decorators wrap a component
+InvoiceComponent <|.. Invoice
+InvoiceComponent <|.. InvoiceDecorator
+InvoiceDecorator o-- "1" InvoiceComponent : wraps
+InvoiceDecorator <|-- LateFeeDecorator
+InvoiceDecorator <|-- DiscountDecorator
+
+@enduml
