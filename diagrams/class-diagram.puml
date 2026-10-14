@@ -1,175 +1,131 @@
 @startuml class-diagram
-title Freelance Invoice Tracker - Class Diagram (Draft)
+title Freelance Invoice Tracker - Class Diagram (Part 1 baseline)
 
 skinparam classAttributeIconSize 0
 skinparam packageStyle rectangle
-skinparam linetype ortho
 hide empty members
 
 ' =========================
-' Core Entities
+' Web layer (Express routes)
 ' =========================
-package "Core Entities" {
+package "UI Controllers" {
+  class ClientController {
+    - store : LocalStorageHandler
+    + createClient(name : string, email : string) : Client
+    + listClients() : Client[]
+  }
+
+  class ProjectController {
+    - store : LocalStorageHandler
+    + createProject(name : string, clientId : number) : Project
+    + listProjects() : Project[]
+  }
+
+  class InvoiceController {
+    - store : LocalStorageHandler
+    + createInvoice(form : object) : Invoice
+    + listInvoices() : Invoice[]
+    + changeStatus(invoiceId : number, newStatus : string) : void
+    + applyLateFee(invoiceId : number, amount : number) : number
+    + applyDiscount(invoiceId : number, percent : number) : number
+    + runOverdueCheck(today : Date) : void
+  }
+}
+
+' =========================
+' Storage
+' =========================
+package "Storage" {
+  class LocalStorageHandler {
+    - key : string
+    + load() : object
+    + save(data : object) : void
+  }
+}
+
+' =========================
+' Domain model
+' =========================
+package "Domain Model" {
   class Client {
-    - id : int
-    - name : String
-    - email : String
-    + getId() : int
-    + getName() : String
-    + getEmail() : String
+    - id : number
+    - name : string
+    - email : string
   }
 
   class Project {
-    - id : int
-    - name : String
+    - id : number
+    - name : string
     - client : Client
-    + getId() : int
-    + getName() : String
-    + getClient() : Client
   }
 
   class Invoice {
-    - id : int
-    - issueDate : LocalDate
-    - dueDate : LocalDate
+    - id : number
     - project : Project
-    - state : InvoiceState
-    - billingStrategy : BillingStrategy
-    + getId() : int
-    + getIssueDate() : LocalDate
-    + getDueDate() : LocalDate
-    + getProject() : Project
-    + setState(state : InvoiceState) : void
-    + getState() : InvoiceState
-    + nextState() : void
-    + checkOverdue(currentDate : LocalDate) : void
-    + setBillingStrategy(strategy : BillingStrategy) : void
-    + getTotal() : double
+    - issueDate : Date
+    - dueDate : Date
+    - status : string
+    - billingType : string
+    - hourlyRate : number
+    - hoursLogged : number
+    - fixedAmount : number
+    - monthlyRate : number
+    - months : number
+    - hasLateFee : boolean
+    - lateFeeAmount : number
+    - hasDiscount : boolean
+    - discountPercent : number
+    + Invoice(id, project, issueDate, dueDate, billingType,\n hourlyRate, hoursLogged, fixedAmount, monthlyRate, months)
+    + calculateTotal() : number
+    + changeStatus(newStatus : string) : void
+    + checkOverdue(today : Date) : void
+    + applyLateFee(amount : number) : void
+    + applyDiscount(percent : number) : void
+    + toDisplayString() : string
   }
 }
 
-' =========================
-' Factory Pattern
-' =========================
-package "Factory Pattern" {
-  class EntityFactory {
-    + createClient(id : int, name : String, email : String) : Client
-    + createProject(id : int, name : String, client : Client) : Project
-  }
-}
+note right of Invoice::status
+  "DRAFT" | "SENT" | "PAID" | "OVERDUE"
+  changeStatus() checks every allowed
+  move in one if/else chain
+end note
 
-' =========================
-' State Pattern
-' =========================
-package "State Pattern" {
-  interface InvoiceState <<interface>> {
-    + next(invoice : Invoice) : void
-    + canApplyDecorator() : boolean
-  }
-
-  class DraftState {
-    + next(invoice : Invoice) : void
-    + canApplyDecorator() : boolean
-  }
-
-  class SentState {
-    + next(invoice : Invoice) : void
-    + canApplyDecorator() : boolean
-  }
-
-  class PaidState {
-    + next(invoice : Invoice) : void
-    + canApplyDecorator() : boolean
-  }
-
-  class OverdueState {
-    + next(invoice : Invoice) : void
-    + canApplyDecorator() : boolean
-  }
-}
-
-' =========================
-' Strategy Pattern
-' =========================
-package "Strategy Pattern" {
-  interface BillingStrategy <<interface>> {
-    + calculateTotal() : double
-  }
-
-  class HourlyStrategy {
-    - hourlyRate : double
-    - hoursLogged : double
-    + calculateTotal() : double
-  }
-
-  class FixedStrategy {
-    - fixedAmount : double
-    + calculateTotal() : double
-  }
-
-  class RetainerStrategy {
-    - monthlyRate : double
-    + calculateTotal() : double
-  }
-}
-
-' =========================
-' Decorator Pattern
-' =========================
-package "Decorator Pattern" {
-  interface InvoiceComponent <<interface>> {
-    + getTotal() : double
-  }
-
-  abstract class InvoiceDecorator {
-    # wrapped : InvoiceComponent
-    + InvoiceDecorator(wrapped : InvoiceComponent)
-    + getTotal() : double
-  }
-
-  class LateFeeDecorator {
-    - feeAmount : double
-    + LateFeeDecorator(wrapped : InvoiceComponent, feeAmount : double)
-    + getTotal() : double
-  }
-
-  class DiscountDecorator {
-    - discountPercent : double
-    + DiscountDecorator(wrapped : InvoiceComponent, discountPercent : double)
-    + getTotal() : double
-  }
-}
+note right of Invoice::billingType
+  "HOURLY" | "FIXED" | "RETAINER"
+  calculateTotal() switches on this
+  and then adds the late fee and
+  discount if their flags are set
+end note
 
 ' =========================
 ' Relationships
 ' =========================
-
-' Core relationships (aggregation)
 Client "1" o-- "0..*" Project : has >
 Project "1" o-- "0..*" Invoice : has >
 
-' Factory: creates but does not own
-EntityFactory ..> Client : <<create>>
-EntityFactory ..> Project : <<create>>
+ClientController --> LocalStorageHandler
+ProjectController --> LocalStorageHandler
+InvoiceController --> LocalStorageHandler
 
-' State: Invoice owns its state (composition)
-Invoice *-- "1" InvoiceState : state
-InvoiceState <|.. DraftState
-InvoiceState <|.. SentState
-InvoiceState <|.. PaidState
-InvoiceState <|.. OverdueState
+ClientController ..> Client : <<create>>
+ProjectController ..> Project : <<create>>
+InvoiceController ..> Invoice : <<create>>
 
-' Strategy: strategy can be shared across invoices (aggregation)
-Invoice "0..*" o-- "1" BillingStrategy : billingStrategy
-BillingStrategy <|.. HourlyStrategy
-BillingStrategy <|.. FixedStrategy
-BillingStrategy <|.. RetainerStrategy
-
-' Decorator: Invoice is the base component, decorators wrap a component
-InvoiceComponent <|.. Invoice
-InvoiceComponent <|.. InvoiceDecorator
-InvoiceDecorator o-- "1" InvoiceComponent : wraps
-InvoiceDecorator <|-- LateFeeDecorator
-InvoiceDecorator <|-- DiscountDecorator
+note as Planned
+  <b>Known design problems and the patterns we plan to apply</b>
+  ----
+  Invoice is a God Object (SRP): status rules, billing math,
+  fees/discounts and display text all live in one class.
+  * status if/else chain (SRP, OCP) -> <b>State</b>
+  * billingType switch in calculateTotal() (OCP) -> <b>Strategy</b>
+  * fee/discount flags, no status check (OCP, risk 2) -> <b>Decorator</b>
+  Controllers call new Client/Project/Invoice themselves
+  (GRASP Creator, Low Coupling) -> <b>Factory Method</b>
+  Each controller creates its own LocalStorageHandler (DIP)
+  -> inject storage from main.js, as in the Todo App
+  Invoice constructor has 10 parameters (telescoping
+  constructor) -> <b>Builder</b> (optional)
+end note
 
 @enduml

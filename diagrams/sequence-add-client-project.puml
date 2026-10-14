@@ -1,0 +1,53 @@
+@startuml sequence-add-client-project
+title Add Client and Project
+
+actor Freelancer
+boundary "clients.html" as cpage
+boundary "projects.html" as ppage
+participant ": ClientController" as cc
+participant ": ProjectController" as pc
+participant ": LocalStorageHandler" as store
+
+== 1. Add a client ==
+Freelancer -> cpage : fill in name, email and submit
+cpage -> cc : createClient(name, email)
+activate cc
+cc -> cc : validate name and email
+alt name or email missing
+  cc --> cpage : throw Error("name and email are required")
+  cpage --> Freelancer : show error
+else valid
+  cc -> store : load()
+  activate store
+  store --> cc : data
+  deactivate store
+  create participant "client : Client" as client
+  cc -> client : new Client(id, name, email)
+  cc -> store : save(data)
+  cc --> cpage : client
+  cpage --> Freelancer : client added to list
+end
+deactivate cc
+
+== 2. Add a project for that client ==
+Freelancer -> ppage : pick client, type project name, submit
+ppage -> pc : createProject(name, clientId)
+activate pc
+pc -> store : load()
+activate store
+store --> pc : data
+deactivate store
+pc -> pc : find client by clientId
+alt client not found
+  pc --> ppage : throw Error("client not found")
+  ppage --> Freelancer : show error
+else client found
+  create participant "project : Project" as project
+  pc -> project : new Project(id, name, client)
+  pc -> store : save(data)
+  pc --> ppage : project
+  ppage --> Freelancer : project added to list
+end
+deactivate pc
+
+@enduml
