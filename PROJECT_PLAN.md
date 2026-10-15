@@ -1,109 +1,96 @@
-# Freelance Invoice Tracker: Project Plan
+# Freelance Invoice Tracker: project plan
 
-Team: Momentum
-Members: Viola Guri, Vesa Sylqa, Kleti Zekaj
-Course: SWEN-383, Software Design Principles and Patterns, RIT Kosovo, Fall 2026
+Team Momentum: Viola Guri, Vesa Sylqa, Kleti Zekaj
+SWEN-383 Software Design Principles and Patterns, RIT Kosovo, Fall 2026
 
 ## What we are building
 
-A freelancer's own invoice tracker. A freelancer adds clients and projects, creates invoices against a project, picks a billing method (hourly, fixed, or retainer), the invoice computes a total, late fees or discounts can be applied on top, and the invoice moves through a status lifecycle (Draft, Sent, Paid, Overdue).
+An invoice tracker for one freelancer. They add clients and projects, create invoices for a project, and pick how each invoice is billed: hourly, fixed price or monthly retainer. The invoice works out its own total, a late fee or discount can go on top, and the invoice moves through Draft, Sent, Paid and Overdue.
 
-No login or multi-user accounts. No real payment processing, status changes by hand. No itemized line items, one computed total per invoice. No PDF export, that stays a stretch goal, not required.
+We kept it small on purpose. No login and no other users. No real payments, so "paid" is a button. No line items, just one total per invoice. PDF export is a maybe, only if there is time at the end.
 
-## Patterns and why
+## How we are approaching the design
 
-Factory creates the Client and Project objects. It keeps creation logic out of the calling code and satisfies OCP, since new entity types can be added later without touching existing code.
+Part 1 shows our first design. It covers every feature above, but after we finished it we reviewed it and found real problems: `Invoice` does almost everything, the status rules and the billing math are long if/else and switch blocks, and the controllers create their own objects and their own storage. Part 2 is about fixing them with patterns.
 
-State handles the invoice lifecycle: Draft, Sent, Paid, Overdue. Each state knows which transitions are legal from it, so the transition rules live outside the Invoice class itself. That is an SRP argument more than an OCP one.
+## Patterns we plan to use
 
-Strategy handles the billing calculation: hourly, fixed, retainer. Invoice just holds a strategy and calls it, so a new billing type can be added without modifying Invoice. This one is OCP.
+State, for the invoice status. Each status (Draft, Sent, Paid, Overdue) becomes its own class that knows which moves are allowed from it. The rules leave `Invoice`, which helps SRP, and a new status is a new class instead of another branch (OCP).
 
-Decorator stacks late fees and discounts on top of the invoice total. It layers behavior onto the total instead of branching inside one class, which is where the ISP/DIP argument comes from.
+Strategy, for billing. `HourlyStrategy`, `FixedStrategy` and `RetainerStrategy` each have a `calculateTotal()`. `Invoice` just holds one and calls it, so a new billing type does not touch `Invoice` (OCP).
 
-Two anticipated risks for Part 1:
-1. State-transition rules getting messy as more statuses or edge cases get added. Mitigated by defining the full transition table before writing any state code.
-2. Decorator/State conflicts, like a late fee landing on an invoice that is already paid. Mitigated by having each state restrict which decorators are allowed to apply while an invoice is in it.
+Decorator, for late fees and discounts. `LateFeeDecorator` and `DiscountDecorator` wrap the invoice total and change it, instead of flags and if checks inside `Invoice`. A new kind of fee is a new decorator (OCP).
 
-## Tech stack
+Factory Method, for creating clients, projects and invoices. Right now the controllers call `new` themselves (GRASP Creator, Low Coupling).
 
-- Backend: Node.js + Express (REST API)
-- Frontend: plain HTML/CSS/vanilla JS, no framework, UI design is not graded
-- Storage: a JSON file read and written by the server. No DB setup, survives a server restart during a live demo.
-- Diagrams: PlantUML, text files committed to the repo under `/diagrams`
-- Version control: Git/GitHub, this repo
+Builder, maybe. The `Invoice` constructor takes 10 parameters, which is the telescoping constructor problem from the Week 6 lecture.
 
-## Folder structure
+We will also do what we did in the Todo App: create the `LocalStorageHandler` once in `main.js` and pass it into the controllers (DIP), instead of each controller making its own.
+
+## Risks
+
+1. The status rules get messy. With every move in one if/else, adding a status or an edge case means editing code that already works. Before writing any State code, we will write down the full table of allowed moves.
+2. Fees clash with the status. In the first design, nothing stops a late fee on an invoice that is already paid. With Decorator plus State, each state decides which fees and discounts it allows.
+
+## Tech
+
+- HTML, CSS and JavaScript (ES modules) in the browser, the same setup as the Todo App
+- simple styled pages for clients, projects and invoices, not a command-line program
+- localStorage for saving data, so it survives a page reload
+- PlantUML for the diagrams, kept in `/diagrams` with a PNG next to each one
+- Git and GitHub, with everyone committing from their own account
+
+## Folders (when we start coding)
 
 ```
-/diagrams          → PlantUML source files (class + sequence diagrams)
-/server
-  server.js
-  /models           → Client, Project, Invoice
-  /patterns         → factory, states, strategies, decorators
-  /routes           → REST endpoints
-  data.json         → persisted data
-/public
-  clients.html
-  projects.html
-  invoices.html
-  /css
-  /js
-PROJECT_PLAN.md
+/diagrams        PlantUML files and their PNGs
+/src
+  /models        Client.js, Project.js, Invoice.js
+  /controllers   ClientController.js, ProjectController.js, InvoiceController.js
+  LocalStorageHandler.js
+  main.js
+/css
+clients.html
+projects.html
+invoices.html
 README.md
+PROJECT_PLAN.md
 ```
 
-## Pattern implementation notes
+## Who does what
 
-Factory: one `EntityFactory` (or `ClientFactory` + `ProjectFactory`) with methods like `createClient(...)` and `createProject(...)`. Keep it to one file.
+Vesa: clients and projects, and Factory Method later.
+Kleti: invoice status, and State later.
+Viola: billing and totals, fees and discounts, so Strategy and Decorator later.
 
-State: one class per status, `DraftState`, `SentState`, `PaidState`, `OverdueState`, each exposing which transitions are legal. Invoice holds a reference to its current state object and delegates transition checks to it instead of branching on a status string.
+For Part 1, each of us pushes our own files from our own account:
 
-Strategy: a `BillingStrategy` interface with `HourlyStrategy`, `FixedStrategy`, `RetainerStrategy`, each implementing `calculateTotal()`. Invoice holds a strategy instance and calls it.
+| Person | Files |
+|---|---|
+| Viola | `README.md`, `PROJECT_PLAN.md`, `diagrams/sequence-create-invoice`, `diagrams/sequence-apply-discount` |
+| Vesa | `diagrams/class-diagram`, `diagrams/sequence-add-client-project` |
+| Kleti | `diagrams/sequence-state-transition`, `diagrams/sequence-overdue-late-fee` |
 
-Decorator: a base total getter on Invoice, then `LateFeeDecorator` and `DiscountDecorator` that wrap it and adjust the number. Each decorator checks the invoice's current state before applying, so no late fee lands on a Paid invoice.
+Each diagram means both the `.puml` and the `.png`.
 
-## Team split
+## Timeline
 
-Vesa takes Client and Project plus Factory, along with the basic add/list pages for both. Lightest part of the three, does not depend on anything else being done first.
+Part 1, due Monday 26 October:
+- by 18 Oct: Vesa and Kleti added as collaborators, everyone has cloned the repo and set up git with their own email
+- by 22 Oct: everyone has pushed their files
+- 23 to 25 Oct: PDF and slides, one practice run with a timer
+- 26 Oct: upload the PDF and the repo link to myCourses
+- 28 or 29 Oct: 5-minute presentation
 
-Kleti takes Invoice plus State: the transition table, state classes, invoice pages. This is the piece everything else builds on, so it needs to be solid early.
+Part 2, due Friday 4 December: build the app, apply the patterns, update the diagrams, write the report, present on 7 or 9 December.
 
-Viola takes Billing Strategy plus Decorator plus the total computation. Toughest split of the three, two patterns stacked plus the actual math, and Decorator cannot really start until State is done.
+## Part 1 checklist
 
-## Build order
-
-**Phase 1, now through Oct 26 (Part 1, design only)**
-Whole team together, not split by person, since the class diagram has to be consistent across all three domains.
-1. Repo setup, `/diagrams` folder, README
-2. Class diagram covering the full domain: Client, Project, Invoice, billing strategy interface, decorator chain, state classes
-3. Sequence diagram(s): "create invoice and compute total", "invoice status transition"
-4. Write description/scope, the two risks and their mitigating patterns
-5. Prepare the 5-minute presentation
-
-**Phase 2, Oct 26 through Dec 4 (Part 2, build)**
-1. Shared setup session: Express skeleton, basic HTML shells for all three pages, JSON storage wired up. Done together so nobody is blocked.
-2. Vesa: Client/Project + Factory
-3. Kleti: Invoice + State (can run in parallel with step 4)
-4. Viola: Billing Strategy (can start immediately, no dependency on State)
-5. Viola: Decorator, once State exists, since it needs to check invoice status
-6. Wire everything into the frontend pages
-7. Refine UML to match what actually got built
-8. Write the 4-5 page report
-9. Rehearse the 10-minute presentation
-
-## Deliverable checklist
-
-**Part 1 (due Oct 26, presented Oct 28)**
-- [ ] Project description and scope
-- [ ] Draft class diagram (PlantUML, in `/diagrams`)
-- [ ] Draft sequence diagram (PlantUML, in `/diagrams`)
-- [ ] 2 anticipated risks + patterns planned against them
-- [ ] 5-minute presentation ready
-
-**Part 2 (due Dec 4, presented Dec 7/9)**
-- [ ] Refined UML diagrams
-- [ ] 3+ patterns demonstrated, with before/after evidence of how they addressed the risks
-- [ ] Final UML diagrams
-- [ ] 4-5 page written report
-- [ ] GitHub repo with commit history from all members
-- [ ] 10-minute presentation ready
+- [x] Description and scope
+- [x] Class diagram
+- [x] Sequence diagrams
+- [x] Two risks and the patterns we plan for them
+- [ ] Everyone has pushed their own files
+- [x] Repo is public
+- [ ] PDF (SWEN383_P1_Momentum.pdf)
+- [ ] 5-minute presentation

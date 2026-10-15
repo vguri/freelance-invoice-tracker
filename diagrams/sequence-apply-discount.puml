@@ -1,0 +1,51 @@
+@startuml sequence-apply-discount
+title Apply Discount
+
+actor Freelancer
+boundary "invoices.html" as page
+participant ": InvoiceController" as ic
+participant ": LocalStorageHandler" as store
+participant "invoice : Invoice" as inv
+
+Freelancer -> page : enter discount %, click "Apply discount"
+page -> ic : applyDiscount(invoiceId, percent)
+activate ic
+ic -> ic : validate percent
+alt percent < 0 or percent > 100
+  ic --> page : throw Error("invalid discount")
+  page --> Freelancer : show error
+else valid
+  ic -> store : load()
+  activate store
+  store --> ic : data
+  deactivate store
+  ic -> ic : find invoice by id
+  ic -> inv : applyDiscount(percent)
+  activate inv
+  inv -> inv : hasDiscount = true\ndiscountPercent = percent
+  inv --> ic
+  deactivate inv
+
+  ic -> inv : calculateTotal()
+  activate inv
+  inv -> inv : base total from billingType switch
+  opt hasLateFee
+    inv -> inv : total += lateFeeAmount
+  end
+  inv -> inv : total -= total * discountPercent / 100
+  inv --> ic : total
+  deactivate inv
+
+  ic -> store : save(data)
+  ic --> page : total
+  page --> Freelancer : show discounted total
+end
+deactivate ic
+
+note right of inv
+  The discount is taken after the late fee,
+  so it also reduces the fee. That order is
+  hard-coded in calculateTotal().
+end note
+
+@enduml
