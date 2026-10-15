@@ -6,7 +6,7 @@ skinparam packageStyle rectangle
 hide empty members
 
 ' =========================
-' Web layer (Express routes)
+' UI controllers (one per page)
 ' =========================
 package "UI Controllers" {
   class ClientController {
