@@ -1,0 +1,61 @@
+@startuml sequence-overdue-late-fee
+title Overdue Check and Late Fee
+
+actor Freelancer
+boundary "invoices.html" as page
+participant ": InvoiceController" as ic
+participant ": LocalStorageHandler" as store
+participant "invoice : Invoice" as inv
+
+== 1. Mark overdue invoices ==
+Freelancer -> page : click "Check overdue"
+page -> ic : runOverdueCheck(today)
+activate ic
+ic -> store : load()
+activate store
+store --> ic : data
+deactivate store
+loop for each invoice
+  ic -> inv : checkOverdue(today)
+  activate inv
+  opt today > dueDate and status == "SENT"
+    inv -> inv : status = "OVERDUE"
+  end
+  inv --> ic
+  deactivate inv
+end
+ic -> store : save(data)
+ic --> page : updated invoices
+page --> Freelancer : overdue invoices highlighted
+deactivate ic
+
+== 2. Add a late fee ==
+Freelancer -> page : enter fee amount, click "Add late fee"
+page -> ic : applyLateFee(invoiceId, amount)
+activate ic
+ic -> store : load()
+activate store
+store --> ic : data
+deactivate store
+ic -> ic : find invoice by id
+ic -> inv : applyLateFee(amount)
+activate inv
+inv -> inv : hasLateFee = true\nlateFeeAmount = amount
+inv --> ic
+deactivate inv
+ic -> inv : calculateTotal()
+activate inv
+inv --> ic : total (base + lateFeeAmount)
+deactivate inv
+ic -> store : save(data)
+ic --> page : total
+page --> Freelancer : show new total
+deactivate ic
+
+note right of inv
+  applyLateFee() never checks status,
+  so a fee can be added to an invoice
+  that is already "PAID" (design risk 2).
+end note
+
+@enduml
