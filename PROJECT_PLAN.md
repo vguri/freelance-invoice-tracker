@@ -90,7 +90,7 @@ Part 2, due Friday 4 December: build the app, apply the patterns, update the dia
 - [x] Class diagram
 - [x] Sequence diagrams
 - [x] Two risks and the patterns we plan for them
-- [ ] Everyone has pushed their own files
+- [x] Everyone has pushed their own files
 - [x] Repo is public
-- [ ] PDF (SWEN383_P1_Momentum.pdf)
+- [x] PDF (SWEN383_P1_Momentum.pdf)
 - [ ] 5-minute presentation
