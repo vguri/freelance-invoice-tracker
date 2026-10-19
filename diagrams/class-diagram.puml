@@ -1,5 +1,5 @@
 @startuml class-diagram
-title Freelance Invoice Tracker - Class Diagram (Part 1 baseline)
+title Freelance Invoice Tracker - Class Diagram (Part 1)
 
 skinparam classAttributeIconSize 0
 skinparam packageStyle rectangle
@@ -113,7 +113,7 @@ ProjectController ..> Project : <<create>>
 InvoiceController ..> Invoice : <<create>>
 
 note as Planned
-  <b>Known design problems and the patterns we plan to apply</b>
+  <b>Problems we found in review, and the patterns we plan to apply</b>
   ----
   Invoice is a God Object (SRP): status rules, billing math,
   fees/discounts and display text all live in one class.
