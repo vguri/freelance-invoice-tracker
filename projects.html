@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Projects - Freelance Invoice Tracker</title>
+
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+    <header>
+
+        <h1>Freelance Invoice Tracker</h1>
+
+        <nav>
+
+            <a href="clients.html">Clients</a>
+
+            <a href="projects.html" class="active">Projects</a>
+
+            <a href="invoices.html">Invoices</a>
+
+        </nav>
+
+    </header>
+
+    <main>
+
+        <div id="message" class="message"></div>
+
+        <section class="card">
+
+            <h2>Add a project</h2>
+
+            <form id="project-form">
+
+                <label>Client <select id="project-client"></select></label>
+
+                <label>Project name <input id="project-name" placeholder="Website redesign"></label>
+
+                <button type="submit">Save project</button>
+
+            </form>
+
+        </section>
+
+        <section class="card">
+
+            <h2>Projects</h2>
+
+            <table>
+
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Project</th>
+                        <th>Client</th>
+                    </tr>
+                </thead>
+
+                <tbody id="project-list"></tbody>
+
+            </table>
+
+        </section>
+
+    </main>
+
+    <script type="module" src="src/main.js"></script>
+</body>
+
+</html>
