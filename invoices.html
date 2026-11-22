@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Invoices - Freelance Invoice Tracker</title>
+
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+    <header>
+
+        <h1>Freelance Invoice Tracker</h1>
+
+        <nav>
+
+            <a href="clients.html">Clients</a>
+
+            <a href="projects.html">Projects</a>
+
+            <a href="invoices.html" class="active">Invoices</a>
+
+        </nav>
+
+    </header>
+
+    <main>
+
+        <div id="message" class="message"></div>
+
+        <!-- Form for a new invoice. Only the rate fields for the chosen billing type are shown. -->
+
+        <section class="card">
+
+            <h2>Create an invoice</h2>
+
+            <form id="invoice-form">
+
+                <label>Project <select id="inv-project"></select></label>
+
+                <label>Issue date <input type="date" id="inv-issue"></label>
+
+                <label>Due date <input type="date" id="inv-due"></label>
+
+                <label>Billing type
+
+                    <select id="inv-type">
+
+                        <option value="HOURLY">Hourly</option>
+
+                        <option value="FIXED">Fixed price</option>
+
+                        <option value="RETAINER">Monthly retainer</option>
+
+                    </select>
+
+                </label>
+
+                <span id="fields-HOURLY">
+
+                    <label>Hourly rate (€) <input type="number" id="inv-rate" class="small" value="25"></label>
+
+                    <label>Hours <input type="number" id="inv-hours" class="small" value="40"></label>
+
+                </span>
+
+                <span id="fields-FIXED" class="hidden">
+
+                    <label>Fixed amount (€) <input type="number" id="inv-fixed" class="small" value="1000"></label>
+
+                </span>
+
+                <span id="fields-RETAINER" class="hidden">
+
+                    <label>Monthly rate (€) <input type="number" id="inv-monthly" class="small" value="500"></label>
+
+                    <label>Months <input type="number" id="inv-months" class="small" value="2"></label>
+
+                </span>
+
+                <button type="submit">Create invoice</button>
+
+            </form>
+
+        </section>
+
+        <!-- List of all invoices, with the buttons to send, mark paid, add a fee or a discount -->
+
+        <section class="card">
+
+            <h2>Invoices</h2>
+
+            <form id="overdue-form" style="margin-bottom: 12px">
+
+                <label>Today's date <input type="date" id="today"></label>
+
+                <button type="submit" class="light">Check overdue</button>
+
+            </form>
+
+            <table>
+
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Project</th>
+                        <th>Billing</th>
+                        <th>Due</th>
+                        <th>Status</th>
+                        <th>Total</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+
+                <tbody id="invoice-list"></tbody>
+
+            </table>
+
+        </section>
+
+    </main>
+
+    <script type="module" src="src/main.js"></script>
+</body>
+
+</html>
