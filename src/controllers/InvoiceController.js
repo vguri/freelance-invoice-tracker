@@ -1,5 +1,6 @@
 import { LocalStorageHandler } from "../LocalStorageHandler.js";
 import { Invoice } from "../models/Invoice.js";
+import { stateFromName } from "../models/states/stateFromName.js";
 
 // Handles everything the invoices page asks for: creating invoices, listing them,
 // changing their status, the overdue check, and adding a late fee or a discount.
@@ -9,9 +10,12 @@ export class InvoiceController {
     }
 
     // localStorage only gives back plain data, without the Invoice methods.
-    // This turns a saved invoice back into a real Invoice object.
+    // This turns a saved invoice back into a real Invoice object,
+    // and gives it back its state object from the saved status name.
     toInvoice(plain) {
-        return Object.assign(Object.create(Invoice.prototype), plain);
+        const invoice = Object.assign(Object.create(Invoice.prototype), plain);
+        invoice.setState(stateFromName(plain.status));
+        return invoice;
     }
 
     // Loads everything and turns the saved invoices back into Invoice objects.
@@ -50,7 +54,7 @@ export class InvoiceController {
         return this.loadData().invoices;
     }
 
-    // The invoice itself decides if the move is allowed. If it is not,
+    // The invoice's current state decides if the move is allowed. If it is not,
     // it throws an error and we don't save anything.
     changeStatus(invoiceId, newStatus) {
         const data = this.loadData();

@@ -1,6 +1,10 @@
+import { DraftState } from "./states/DraftState.js";
+
 // An invoice the freelancer sends a client for one project.
-// It keeps the dates, the status (DRAFT, SENT, PAID or OVERDUE), how the work is billed,
-// and any late fee or discount, and it works out its own total.
+// It keeps the dates, how the work is billed, and any late fee or discount,
+// and it works out its own total.
+// The status rules are not in here anymore: each status is its own class
+// in the states folder (State pattern), and the invoice just asks its current state.
 export class Invoice {
     constructor(id, project, issueDate, dueDate, billingType,
         hourlyRate, hoursLogged, fixedAmount, monthlyRate, months) {
@@ -10,7 +14,7 @@ export class Invoice {
         this.dueDate = dueDate;
 
         // Every new invoice starts as a draft.
-        this.status = "DRAFT";
+        this.setState(new DraftState());
 
         // billingType is "HOURLY", "FIXED" or "RETAINER".
         // Only the fields for that type are used, the others stay 0.
@@ -26,6 +30,13 @@ export class Invoice {
         this.lateFeeAmount = 0;
         this.hasDiscount = false;
         this.discountPercent = 0;
+    }
+
+    // The states call this to move the invoice to a new status.
+    // We also keep the name in "status", so the page can show it and localStorage can save it.
+    setState(state) {
+        this.state = state;
+        this.status = state.name;
     }
 
     // Works out what the client has to pay.
@@ -53,37 +64,51 @@ export class Invoice {
         return total;
     }
 
-    // Moves the invoice to a new status, if that move is allowed:
-    //   DRAFT -> SENT, SENT -> PAID, OVERDUE -> PAID
-    // Any other move (for example PAID -> SENT) throws an error and nothing changes.
+    // The two buttons on the page. The current state decides if the move is allowed,
+    // and throws an error if it is not (for example PAID -> SENT).
+    send() {
+        this.state.send(this);
+    }
+
+    pay() {
+        this.state.pay(this);
+    }
+
+    // The page sends "SENT" or "PAID", so this picks the matching move.
     changeStatus(newStatus) {
-        if (this.status === "DRAFT" && newStatus === "SENT") {
-            this.status = "SENT";
-        } else if ((this.status === "SENT" || this.status === "OVERDUE") && newStatus === "PAID") {
-            this.status = "PAID";
+        if (newStatus === "SENT") {
+            this.send();
+        } else if (newStatus === "PAID") {
+            this.pay();
         } else {
-            throw new Error("illegal status change: " + this.status + " to " + newStatus);
+            throw new Error("unknown status: " + newStatus);
         }
     }
 
-    // If the invoice was sent and the due date has passed, it becomes overdue.
-    // Drafts and paid invoices are left alone.
+    // If the due date has passed, we tell the state. Only a SENT invoice
+    // actually becomes OVERDUE, the other states ignore it.
     checkOverdue(today) {
-        if (today > new Date(this.dueDate) && this.status === "SENT") {
-            this.status = "OVERDUE";
+        if (today > new Date(this.dueDate)) {
+            this.state.markOverdue(this);
         }
     }
 
-    // Adds a late fee to the total.
-    // Note: this does not look at the status, so a fee can still be added
-    // to an invoice that is already PAID.
+    // Adds a late fee to the total, but only if the current state allows it
+    // (only OVERDUE does). This fixes Risk 2: a PAID invoice can't get a fee anymore.
     applyLateFee(amount) {
+        if (!this.state.canAddLateFee()) {
+            throw new Error("a late fee can only be added to an OVERDUE invoice");
+        }
         this.hasLateFee = true;
         this.lateFeeAmount = amount;
     }
 
     // Takes a percentage off the total (the controller checks it is between 0 and 100).
+    // A PAID invoice can't get a discount anymore.
     applyDiscount(percent) {
+        if (!this.state.canApplyDiscount()) {
+            throw new Error("a " + this.status + " invoice can't get a discount");
+        }
         this.hasDiscount = true;
         this.discountPercent = percent;
     }
