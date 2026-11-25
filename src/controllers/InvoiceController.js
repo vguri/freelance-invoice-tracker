@@ -1,6 +1,7 @@
 import { LocalStorageHandler } from "../LocalStorageHandler.js";
 import { Invoice } from "../models/Invoice.js";
 import { stateFromName } from "../models/states/stateFromName.js";
+import { billingFromData } from "../models/billing/billingFromData.js";
 
 // Handles everything the invoices page asks for: creating invoices, listing them,
 // changing their status, the overdue check, and adding a late fee or a discount.
@@ -11,10 +12,14 @@ export class InvoiceController {
 
     // localStorage only gives back plain data, without the Invoice methods.
     // This turns a saved invoice back into a real Invoice object,
-    // and gives it back its state object from the saved status name.
+    // and gives it back its state object (from the saved status name)
+    // and its billing object (with any fee or discount wrapped around it).
     toInvoice(plain) {
         const invoice = Object.assign(Object.create(Invoice.prototype), plain);
         invoice.setState(stateFromName(plain.status));
+        // Invoices saved before Strategy have no "billing" yet, only the old rate fields,
+        // so for those we build the billing from the invoice itself.
+        invoice.billing = billingFromData(plain.billing || plain);
         return invoice;
     }
 
@@ -34,15 +39,16 @@ export class InvoiceController {
     }
 
     // "form" holds what the user filled in on the page: the project, the dates,
-    // the billing type and the rates.
+    // the billing type and the rates. The billing type and rates become
+    // one billing object (Hourly, Fixed or Retainer).
     createInvoice(form) {
         const data = this.loadData();
         const project = data.projects.find(p => p.id === form.projectId);
         if (!project) {
             throw new Error("project not found");
         }
-        const invoice = new Invoice(data.nextId++, project, form.issueDate, form.dueDate, form.billingType,
-            form.hourlyRate, form.hoursLogged, form.fixedAmount, form.monthlyRate, form.months);
+        const billing = billingFromData(form);
+        const invoice = new Invoice(data.nextId++, project, form.issueDate, form.dueDate, billing);
         invoice.calculateTotal();
         invoice.toDisplayString();
         data.invoices.push(invoice);

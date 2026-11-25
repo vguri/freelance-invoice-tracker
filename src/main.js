@@ -170,18 +170,6 @@ if (invoiceForm) {
 
     });
 
-    // Short text for the Billing column, for example "Hourly €25 × 40h".
-
-    function billingText(inv) {
-
-        if (inv.billingType === "HOURLY") return "Hourly " + euro(inv.hourlyRate) + " × " + inv.hoursLogged + "h";
-
-        if (inv.billingType === "FIXED") return "Fixed " + euro(inv.fixedAmount);
-
-        return "Retainer " + euro(inv.monthlyRate) + " × " + inv.months + " months";
-
-    }
-
     // Fills the project dropdown and redraws the invoice table.
 
     function renderInvoices() {
@@ -198,25 +186,21 @@ if (invoiceForm) {
 
         const rows = invoiceController.listInvoices().map(inv => {
 
-            const extras = [];
-
-            if (inv.hasLateFee) extras.push("+ fee " + euro(inv.lateFeeAmount));
-
-            if (inv.hasDiscount) extras.push("− " + inv.discountPercent + "%");
-
             return "<tr>" +
 
                 "<td>" + inv.id + "</td>" +
 
                 "<td>" + escapeHtml(inv.project.name) + '<br><span class="muted">' + escapeHtml(inv.project.client.name) + "</span></td>" +
 
-                "<td>" + billingText(inv) + "</td>" +
+                // The billing object describes itself, for example
+                // "Fixed €1,000 + late fee €50 − 10%" (Strategy + Decorator).
+                "<td>" + inv.billing.describe() + "</td>" +
 
                 "<td>" + inv.dueDate + "</td>" +
 
                 '<td><span class="status ' + inv.status + '">' + inv.status + "</span></td>" +
 
-                "<td><b>" + euro(inv.calculateTotal()) + '</b><br><span class="muted">' + extras.join(" ") + "</span></td>" +
+                "<td><b>" + euro(inv.calculateTotal()) + "</b></td>" +
 
                 '<td><div class="actions">' +
 
