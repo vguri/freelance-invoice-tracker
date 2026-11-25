@@ -94,7 +94,7 @@
 
         <section class="card">
 
-            <h2>Invoices</h2>
+            <h2>All invoices</h2>
 
             <form id="overdue-form" style="margin-bottom: 12px">
 
@@ -129,6 +129,70 @@
                 </thead>
 
                 <tbody id="invoice-list"></tbody>
+
+            </table>
+
+        </section>
+
+        <!-- Only the overdue invoices. Filled by a StatusTable (Observer). -->
+
+        <section class="card">
+
+            <h2>Overdue</h2>
+
+            <table>
+
+                <thead>
+
+                    <tr>
+
+                        <th>ID</th>
+
+                        <th>Project</th>
+
+                        <th>Billing</th>
+
+                        <th>Due</th>
+
+                        <th>Total</th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody id="overdue-list"></tbody>
+
+            </table>
+
+        </section>
+
+        <!-- Only the paid invoices. Filled by a StatusTable (Observer). -->
+
+        <section class="card">
+
+            <h2>Paid</h2>
+
+            <table>
+
+                <thead>
+
+                    <tr>
+
+                        <th>ID</th>
+
+                        <th>Project</th>
+
+                        <th>Billing</th>
+
+                        <th>Due</th>
+
+                        <th>Total</th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody id="paid-list"></tbody>
 
             </table>
 

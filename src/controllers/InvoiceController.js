@@ -1,13 +1,16 @@
-import { LocalStorageHandler } from "../LocalStorageHandler.js";
 import { Invoice } from "../models/Invoice.js";
 import { stateFromName } from "../models/states/stateFromName.js";
 import { billingFromData } from "../models/billing/billingFromData.js";
 
 // Handles everything the invoices page asks for: creating invoices, listing them,
 // changing their status, the overdue check, and adding a late fee or a discount.
+// The storage, the factory and the InvoiceBook are passed in from main.js.
+// After every change it tells the InvoiceBook, and the book tells the tables (Observer).
 export class InvoiceController {
-    constructor() {
-        this.store = new LocalStorageHandler("freelance-invoice-tracker");
+    constructor(store, factory, book) {
+        this.store = store;
+        this.factory = factory;
+        this.book = book;
     }
 
     // localStorage only gives back plain data, without the Invoice methods.
@@ -38,21 +41,23 @@ export class InvoiceController {
         return invoice;
     }
 
-    // "form" holds what the user filled in on the page: the project, the dates,
-    // the billing type and the rates. The billing type and rates become
-    // one billing object (Hourly, Fixed or Retainer).
-    createInvoice(form) {
-        const data = this.loadData();
-        const project = data.projects.find(p => p.id === form.projectId);
-        if (!project) {
-            throw new Error("project not found");
-        }
-        const billing = billingFromData(form);
-        const invoice = new Invoice(data.nextId++, project, form.issueDate, form.dueDate, billing);
-        invoice.calculateTotal();
-        invoice.toDisplayString();
-        data.invoices.push(invoice);
+    // Saves and then tells every table that the invoices changed.
+    saveAndNotify(data) {
         this.store.save(data);
+        this.book.changed(data.invoices);
+    }
+
+    // Tells the tables about the invoices without changing anything.
+    // main.js calls this once when the page opens, so the tables are filled.
+    refresh() {
+        this.book.changed(this.listInvoices());
+    }
+
+    // "form" holds what the user filled in on the page. The InvoiceFactory
+    // makes the Invoice (and its billing object) and saves it.
+    createInvoice(form) {
+        const invoice = this.factory.add(form);
+        this.refresh();
         return invoice;
     }
 
@@ -66,7 +71,7 @@ export class InvoiceController {
         const data = this.loadData();
         const invoice = this.findInvoice(data, invoiceId);
         invoice.changeStatus(newStatus);
-        this.store.save(data);
+        this.saveAndNotify(data);
         return invoice;
     }
 
@@ -74,9 +79,8 @@ export class InvoiceController {
         const data = this.loadData();
         const invoice = this.findInvoice(data, invoiceId);
         invoice.applyLateFee(amount);
-        const total = invoice.calculateTotal();
-        this.store.save(data);
-        return total;
+        this.saveAndNotify(data);
+        return invoice.calculateTotal();
     }
 
     applyDiscount(invoiceId, percent) {
@@ -87,9 +91,8 @@ export class InvoiceController {
         const data = this.loadData();
         const invoice = this.findInvoice(data, invoiceId);
         invoice.applyDiscount(percent);
-        const total = invoice.calculateTotal();
-        this.store.save(data);
-        return total;
+        this.saveAndNotify(data);
+        return invoice.calculateTotal();
     }
 
     // Goes through every invoice and marks the late ones as overdue.
@@ -99,7 +102,7 @@ export class InvoiceController {
         for (const invoice of data.invoices) {
             invoice.checkOverdue(today);
         }
-        this.store.save(data);
+        this.saveAndNotify(data);
         return data.invoices;
     }
 }
