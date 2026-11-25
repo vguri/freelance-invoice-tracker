@@ -1,9 +1,11 @@
+import { InvoiceObserver } from "../observer/InvoiceObserver.js";
 import { euro, escapeHtml } from "./format.js";
 // An observer: the main table with every invoice and the action buttons.
 // update() is called by the InvoiceBook whenever the invoices change.
-export class AllInvoicesTable {
+export class AllInvoicesTable extends InvoiceObserver {
 
     constructor(tbodyId) {
+        super();
 
         this.tbody = document.getElementById(tbodyId);
 
