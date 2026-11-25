@@ -1,12 +1,26 @@
 // The starting point of the app. It connects the three pages
 // (clients.html, projects.html, invoices.html) to the controllers.
 // Every page loads this same file, and each part below only runs on the page that has its form.
+//
+// This is also the one place where the objects are created and connected
+// (Dependency Inversion): one storage, the factories, the InvoiceBook and the tables.
+import { LocalStorageHandler } from "./LocalStorageHandler.js";
+import { ClientFactory } from "./factories/ClientFactory.js";
+import { ProjectFactory } from "./factories/ProjectFactory.js";
+import { InvoiceFactory } from "./factories/InvoiceFactory.js";
 import { ClientController } from "./controllers/ClientController.js";
 import { ProjectController } from "./controllers/ProjectController.js";
 import { InvoiceController } from "./controllers/InvoiceController.js";
-const clientController = new ClientController();
-const projectController = new ProjectController();
-const invoiceController = new InvoiceController();
+import { InvoiceBook } from "./observer/InvoiceBook.js";
+import { AllInvoicesTable } from "./views/AllInvoicesTable.js";
+import { StatusTable } from "./views/StatusTable.js";
+import { euro, escapeHtml } from "./views/format.js";
+// One storage object, shared by all three controllers.
+const storage = new LocalStorageHandler("freelance-invoice-tracker");
+const invoiceBook = new InvoiceBook();
+const clientController = new ClientController(storage, new ClientFactory(storage));
+const projectController = new ProjectController(storage, new ProjectFactory(storage));
+const invoiceController = new InvoiceController(storage, new InvoiceFactory(storage), invoiceBook);
 // ---------- small helpers ----------
 // Shows a green (ok) or red (error) message at the top of the page.
 function showMessage(text, ok) {
@@ -31,16 +45,6 @@ function run(action) {
         return undefined;
 
     }
-}
-// 1050 -> "€1,050"
-function euro(n) {
-
-    return "€" + Number(n).toLocaleString("en", { maximumFractionDigits: 2 });
-}
-// Makes text safe to put inside the page, so a name like "<b>" is shown as text.
-function escapeHtml(s) {
-
-    return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
 // A date as "2026-11-22", the format the date fields use.
 function dateText(date) {
@@ -148,6 +152,16 @@ if (projectForm) {
 const invoiceForm = document.getElementById("invoice-form");
 if (invoiceForm) {
 
+    // The three tables subscribe to the InvoiceBook (Observer).
+
+    // From now on they redraw themselves every time the invoices change.
+
+    invoiceBook.subscribe(new AllInvoicesTable("invoice-list"));
+
+    invoiceBook.subscribe(new StatusTable("overdue-list", "OVERDUE"));
+
+    invoiceBook.subscribe(new StatusTable("paid-list", "PAID"));
+
     const typeSelect = document.getElementById("inv-type");
 
     // Default dates: issued today, due in 14 days.
@@ -170,61 +184,17 @@ if (invoiceForm) {
 
     });
 
-    // Fills the project dropdown and redraws the invoice table.
+    // Fills the project dropdown of the form.
 
-    function renderInvoices() {
+    const projects = projectController.listProjects();
 
-        const projects = projectController.listProjects();
+    document.getElementById("inv-project").innerHTML = projects.length
 
-        document.getElementById("inv-project").innerHTML = projects.length
+        ? projects.map(p => '<option value="' + p.id + '">' + escapeHtml(p.name) +
 
-            ? projects.map(p => '<option value="' + p.id + '">' + escapeHtml(p.name) +
+            " (" + escapeHtml(p.client.name) + ")</option>").join("")
 
-                " (" + escapeHtml(p.client.name) + ")</option>").join("")
-
-            : '<option value="">Add a project first</option>';
-
-        const rows = invoiceController.listInvoices().map(inv => {
-
-            return "<tr>" +
-
-                "<td>" + inv.id + "</td>" +
-
-                "<td>" + escapeHtml(inv.project.name) + '<br><span class="muted">' + escapeHtml(inv.project.client.name) + "</span></td>" +
-
-                // The billing object describes itself, for example
-                // "Fixed €1,000 + late fee €50 − 10%" (Strategy + Decorator).
-                "<td>" + inv.billing.describe() + "</td>" +
-
-                "<td>" + inv.dueDate + "</td>" +
-
-                '<td><span class="status ' + inv.status + '">' + inv.status + "</span></td>" +
-
-                "<td><b>" + euro(inv.calculateTotal()) + "</b></td>" +
-
-                '<td><div class="actions">' +
-
-                '<button data-act="SENT" data-id="' + inv.id + '">Send</button>' +
-
-                '<button data-act="PAID" data-id="' + inv.id + '">Mark paid</button>' +
-
-                '<input class="small" type="number" placeholder="€ fee" id="fee-' + inv.id + '">' +
-
-                '<button class="light" data-act="fee" data-id="' + inv.id + '">Add late fee</button>' +
-
-                '<input class="small" type="number" placeholder="%" id="disc-' + inv.id + '">' +
-
-                '<button class="light" data-act="discount" data-id="' + inv.id + '">Apply discount</button>' +
-
-                "</div></td></tr>";
-
-        });
-
-        document.getElementById("invoice-list").innerHTML =
-
-            rows.join("") || '<tr><td colspan="7" class="muted">No invoices yet.</td></tr>';
-
-    }
+        : '<option value="">Add a project first</option>';
 
     invoiceForm.addEventListener("submit", e => {
 
@@ -258,8 +228,6 @@ if (invoiceForm) {
 
             showMessage("Invoice #" + invoice.id + " created as DRAFT.", true);
 
-            renderInvoices();
-
         }
 
     });
@@ -270,15 +238,17 @@ if (invoiceForm) {
 
         const today = new Date(document.getElementById("today").value);
 
-        run(() => invoiceController.runOverdueCheck(today));
+        if (run(() => invoiceController.runOverdueCheck(today))) {
 
-        showMessage("Overdue check done.", true);
+            showMessage("Overdue check done.", true);
 
-        renderInvoices();
+        }
 
     });
 
-    // One click handler for every button in the table.
+    // One click handler for every button in the main table.
+
+    // No redrawing here: the controller tells the InvoiceBook, and the tables update themselves.
 
     document.getElementById("invoice-list").addEventListener("click", e => {
 
@@ -316,9 +286,9 @@ if (invoiceForm) {
 
         }
 
-        renderInvoices();
-
     });
 
-    renderInvoices();
+    // Fill the tables once when the page opens.
+
+    invoiceController.refresh();
 }

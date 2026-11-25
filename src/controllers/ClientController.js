@@ -1,25 +1,14 @@
-import { LocalStorageHandler } from "../LocalStorageHandler.js";
-import { Client } from "../models/Client.js";
-
 // Handles what the clients page asks for: adding a client and listing them.
+// The storage and the factory are passed in from main.js (Dependency Inversion),
+// so this controller doesn't create its own storage and doesn't call "new Client" itself.
 export class ClientController {
-    constructor() {
-        // For now this controller makes its own storage object.
-        // Each controller does the same, which we want to change later (DIP).
-        this.store = new LocalStorageHandler("freelance-invoice-tracker");
+    constructor(store, factory) {
+        this.store = store;
+        this.factory = factory;
     }
 
     createClient(name, email) {
-        // Both fields are required, otherwise we stop and the page shows the error.
-        if (!name || !email) {
-            throw new Error("name and email are required");
-        }
-        const data = this.store.load();
-        // Each new client gets the next free id.
-        const client = new Client(data.nextId++, name, email);
-        data.clients.push(client);
-        this.store.save(data);
-        return client;
+        return this.factory.add({ name, email });
     }
 
     listClients() {
