@@ -1,0 +1,315 @@
+@startuml class-diagram-final
+title Freelance Invoice Tracker - Final Class Diagram (Part 2, after the patterns)
+
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam nodesep 40
+skinparam ranksep 60
+hide empty members
+
+' =========================
+' Composition root
+' =========================
+class "main.js" as Main <<module>> {
+  - storage : LocalStorageHandler
+  - invoiceBook : InvoiceBook
+  - clientController : ClientController
+  - projectController : ProjectController
+  - invoiceController : InvoiceController
+  - showMessage(text : string, ok : boolean) : void
+  - run(action : function) : any
+}
+note left of Main
+  creates ONE LocalStorageHandler, the
+  factories and the InvoiceBook, and passes
+  them into the controllers (DIP).
+  Subscribes the 3 tables to the InvoiceBook.
+end note
+
+' =========================
+' Controllers
+' =========================
+package "UI Controllers" {
+  class ClientController {
+    - store : LocalStorageHandler
+    - factory : ClientFactory
+    + ClientController(store, factory)
+    + createClient(name : string, email : string) : Client
+    + listClients() : Client[]
+  }
+  class ProjectController {
+    - store : LocalStorageHandler
+    - factory : ProjectFactory
+    + ProjectController(store, factory)
+    + createProject(name : string, clientId : number) : Project
+    + listProjects() : Project[]
+  }
+  class InvoiceController {
+    - store : LocalStorageHandler
+    - factory : InvoiceFactory
+    - book : InvoiceBook
+    + InvoiceController(store, factory, book)
+    - toInvoice(plain : object) : Invoice
+    - loadData() : object
+    - findInvoice(data : object, invoiceId : number) : Invoice
+    - saveAndNotify(data : object) : void
+    + refresh() : void
+    + createInvoice(form : object) : Invoice
+    + listInvoices() : Invoice[]
+    + changeStatus(invoiceId : number, newStatus : string) : Invoice
+    + applyLateFee(invoiceId : number, amount : number) : number
+    + applyDiscount(invoiceId : number, percent : number) : number
+    + runOverdueCheck(today : Date) : Invoice[]
+  }
+}
+
+package "Storage" {
+  class LocalStorageHandler {
+    - key : string
+    + LocalStorageHandler(key : string)
+    + load() : object
+    + save(data : object) : void
+  }
+}
+
+' =========================
+' Factory Method
+' =========================
+package "Factory Method" {
+  abstract class RecordFactory <<Creator>> {
+    - store : LocalStorageHandler
+    - listName : string
+    + RecordFactory(store, listName : string)
+    + add(fields : object) : object
+    + {abstract} createRecord(id : number, fields : object, data : object) : object
+  }
+  class ClientFactory {
+    + createRecord(id, fields, data) : Client
+  }
+  class ProjectFactory {
+    + createRecord(id, fields, data) : Project
+  }
+  class InvoiceFactory {
+    + createRecord(id, form, data) : Invoice
+  }
+}
+note bottom of RecordFactory
+  add(): load data, id = nextId,
+  record = createRecord(...)  <- factory method,
+  push to data[listName], save
+end note
+
+' =========================
+' Observer
+' =========================
+package "Observer" {
+  class InvoiceBook <<Subject>> {
+    - observers : InvoiceObserver[]
+    + subscribe(observer : InvoiceObserver) : void
+    + unsubscribe(observer : InvoiceObserver) : void
+    + changed(invoices : Invoice[]) : void
+  }
+  interface InvoiceObserver <<Observer>> {
+    + update(invoices : Invoice[]) : void
+  }
+  class AllInvoicesTable {
+    - tbody : HTMLElement
+    + AllInvoicesTable(tbodyId : string)
+    + update(invoices : Invoice[]) : void
+  }
+  class StatusTable {
+    - tbody : HTMLElement
+    - status : string
+    + StatusTable(tbodyId : string, status : string)
+    + update(invoices : Invoice[]) : void
+  }
+}
+note bottom of StatusTable
+  used twice: "OVERDUE" table and "PAID" table
+end note
+note left of InvoiceObserver
+  not a separate class in the JS code:
+  any object with update(invoices)
+  can subscribe (duck typing)
+end note
+
+' =========================
+' Domain model
+' =========================
+package "Domain Model" {
+  class Client {
+    - id : number
+    - name : string
+    - email : string
+    + Client(id, name, email)
+  }
+  class Project {
+    - id : number
+    - name : string
+    - client : Client
+    + Project(id, name, client : Client)
+  }
+  class Invoice <<Context>> {
+    - id : number
+    - project : Project
+    - issueDate : string
+    - dueDate : string
+    - status : string
+    - state : InvoiceState
+    - billing : BillingStrategy
+    + Invoice(id, project, issueDate, dueDate, billing : BillingStrategy)
+    + setState(state : InvoiceState) : void
+    + calculateTotal() : number
+    + send() : void
+    + pay() : void
+    + changeStatus(newStatus : string) : void
+    + checkOverdue(today : Date) : void
+    + applyLateFee(amount : number) : void
+    + applyDiscount(percent : number) : void
+    + toDisplayString() : string
+  }
+}
+
+' =========================
+' State
+' =========================
+package "State" {
+  abstract class InvoiceState <<State>> {
+    - name : string
+    + send(invoice : Invoice) : void
+    + pay(invoice : Invoice) : void
+    + markOverdue(invoice : Invoice) : void
+    + canAddLateFee() : boolean
+    + canApplyDiscount() : boolean
+  }
+  class DraftState {
+    + send(invoice) : void
+  }
+  class SentState {
+    + pay(invoice) : void
+    + markOverdue(invoice) : void
+  }
+  class OverdueState {
+    + pay(invoice) : void
+    + canAddLateFee() : boolean
+  }
+  class PaidState {
+    + canApplyDiscount() : boolean
+  }
+  class stateFromName <<function>> {
+    + stateFromName(name : string) : InvoiceState
+  }
+}
+note bottom of InvoiceState
+  base: send()/pay() throw "illegal status change",
+  markOverdue() does nothing,
+  canAddLateFee() false, canApplyDiscount() true
+  DRAFT -> SENT -> PAID, SENT -> OVERDUE -> PAID
+end note
+
+' =========================
+' Strategy + Decorator
+' =========================
+package "Strategy + Decorator" {
+  abstract class BillingStrategy <<Strategy / Component>> {
+    - billingType : string
+    + {abstract} calculateTotal() : number
+    + {abstract} describe() : string
+  }
+  class HourlyStrategy {
+    - hourlyRate : number
+    - hoursLogged : number
+    + calculateTotal() : number
+    + describe() : string
+  }
+  class FixedStrategy {
+    - fixedAmount : number
+    + calculateTotal() : number
+    + describe() : string
+  }
+  class RetainerStrategy {
+    - monthlyRate : number
+    - months : number
+    + calculateTotal() : number
+    + describe() : string
+  }
+  abstract class BillingDecorator <<Decorator>> {
+    - inner : BillingStrategy
+    + calculateTotal() : number
+    + describe() : string
+  }
+  class LateFeeDecorator {
+    - amount : number
+    + calculateTotal() : number
+    + describe() : string
+  }
+  class DiscountDecorator {
+    - percent : number
+    + calculateTotal() : number
+    + describe() : string
+  }
+  class billingFromData <<function>> {
+    + billingFromData(data : object) : BillingStrategy
+  }
+}
+
+' =========================
+' Relationships
+' =========================
+Main --> "1" LocalStorageHandler
+Main --> "1" InvoiceBook
+Main --> ClientController
+Main --> ProjectController
+Main --> InvoiceController
+Main ..> ClientFactory : <<create>>
+Main ..> ProjectFactory : <<create>>
+Main ..> InvoiceFactory : <<create>>
+Main ..> AllInvoicesTable : <<create>>
+Main ..> StatusTable : <<create>>
+
+ClientController --> LocalStorageHandler
+ClientController --> ClientFactory
+ProjectController --> LocalStorageHandler
+ProjectController --> ProjectFactory
+InvoiceController --> LocalStorageHandler
+InvoiceController --> InvoiceFactory
+InvoiceController --> InvoiceBook : notifies >
+InvoiceController ..> stateFromName
+InvoiceController ..> billingFromData
+
+RecordFactory --> LocalStorageHandler
+RecordFactory <|-- ClientFactory
+RecordFactory <|-- ProjectFactory
+RecordFactory <|-- InvoiceFactory
+ClientFactory ..> Client : <<create>>
+ProjectFactory ..> Project : <<create>>
+InvoiceFactory ..> Invoice : <<create>>
+InvoiceFactory ..> billingFromData
+
+InvoiceBook o--> "0..*" InvoiceObserver : observers
+InvoiceObserver <|.. AllInvoicesTable
+InvoiceObserver <|.. StatusTable
+
+Project "0..*" --> "1" Client : client
+Invoice "0..*" --> "1" Project : project
+Invoice --> "1" InvoiceState : state
+Invoice --> "1" BillingStrategy : billing
+
+InvoiceState <|-- DraftState
+InvoiceState <|-- SentState
+InvoiceState <|-- OverdueState
+InvoiceState <|-- PaidState
+stateFromName ..> InvoiceState : <<create>>
+
+BillingStrategy <|-- HourlyStrategy
+BillingStrategy <|-- FixedStrategy
+BillingStrategy <|-- RetainerStrategy
+BillingStrategy <|-- BillingDecorator
+BillingDecorator o--> "1" BillingStrategy : inner
+BillingDecorator <|-- LateFeeDecorator
+BillingDecorator <|-- DiscountDecorator
+billingFromData ..> BillingStrategy : <<create>>
+Invoice ..> LateFeeDecorator : <<create>>
+Invoice ..> DiscountDecorator : <<create>>
+
+@enduml
