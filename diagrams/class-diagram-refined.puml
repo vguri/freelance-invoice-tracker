@@ -1,0 +1,171 @@
+@startuml class-diagram-refined
+title Freelance Invoice Tracker - Refined Class Diagram (Part 2, matches the code before patterns)
+
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+hide empty members
+
+' =========================
+' Entry point (src/main.js)
+' =========================
+package "Pages" {
+  class "main.js" as Main <<module>> {
+    - clientController : ClientController
+    - projectController : ProjectController
+    - invoiceController : InvoiceController
+    - showMessage(text : string, ok : boolean) : void
+    - run(action : function) : any
+    - renderClients() : void
+    - renderProjects() : void
+    - renderInvoices() : void
+    - billingText(inv : Invoice) : string
+  }
+}
+
+' =========================
+' UI controllers (one per page)
+' =========================
+package "UI Controllers" {
+  class ClientController {
+    - store : LocalStorageHandler
+    + ClientController()
+    + createClient(name : string, email : string) : Client
+    + listClients() : Client[]
+  }
+
+  class ProjectController {
+    - store : LocalStorageHandler
+    + ProjectController()
+    + createProject(name : string, clientId : number) : Project
+    + listProjects() : Project[]
+  }
+
+  class InvoiceController {
+    - store : LocalStorageHandler
+    + InvoiceController()
+    - toInvoice(plain : object) : Invoice
+    - loadData() : object
+    - findInvoice(data : object, invoiceId : number) : Invoice
+    + createInvoice(form : object) : Invoice
+    + listInvoices() : Invoice[]
+    + changeStatus(invoiceId : number, newStatus : string) : Invoice
+    + applyLateFee(invoiceId : number, amount : number) : number
+    + applyDiscount(invoiceId : number, percent : number) : number
+    + runOverdueCheck(today : Date) : Invoice[]
+  }
+}
+
+' =========================
+' Storage
+' =========================
+package "Storage" {
+  class LocalStorageHandler {
+    - key : string
+    + LocalStorageHandler(key : string)
+    + load() : object
+    + save(data : object) : void
+  }
+}
+
+note bottom of LocalStorageHandler
+  everything is saved under one key
+  "freelance-invoice-tracker" as
+  { nextId, clients[], projects[], invoices[] }
+end note
+
+' =========================
+' Domain model
+' =========================
+package "Domain Model" {
+  class Client {
+    - id : number
+    - name : string
+    - email : string
+    + Client(id : number, name : string, email : string)
+  }
+
+  class Project {
+    - id : number
+    - name : string
+    - client : Client
+    + Project(id : number, name : string, client : Client)
+  }
+
+  class Invoice {
+    - id : number
+    - project : Project
+    - issueDate : string
+    - dueDate : string
+    - status : string
+    - billingType : string
+    - hourlyRate : number
+    - hoursLogged : number
+    - fixedAmount : number
+    - monthlyRate : number
+    - months : number
+    - hasLateFee : boolean
+    - lateFeeAmount : number
+    - hasDiscount : boolean
+    - discountPercent : number
+    + Invoice(id, project, issueDate, dueDate, billingType,\n hourlyRate, hoursLogged, fixedAmount, monthlyRate, months)
+    + calculateTotal() : number
+    + changeStatus(newStatus : string) : void
+    + checkOverdue(today : Date) : void
+    + applyLateFee(amount : number) : void
+    + applyDiscount(percent : number) : void
+    + toDisplayString() : string
+  }
+}
+
+note left of Invoice::status
+  "DRAFT" | "SENT" | "PAID" | "OVERDUE"
+  changeStatus() allows only
+  DRAFT->SENT, SENT->PAID, OVERDUE->PAID
+  in one if/else chain, anything else throws
+end note
+
+note left of Invoice::billingType
+  "HOURLY" | "FIXED" | "RETAINER"
+  calculateTotal() switches on this,
+  then adds the late fee and takes off
+  the discount if their flags are set
+end note
+
+' =========================
+' Relationships
+' =========================
+Main --> "1" ClientController
+Main --> "1" ProjectController
+Main --> "1" InvoiceController
+
+ClientController *-- "1" LocalStorageHandler : creates its own >
+ProjectController *-- "1" LocalStorageHandler : creates its own >
+InvoiceController *-- "1" LocalStorageHandler : creates its own >
+
+ClientController ..> Client : <<create>>
+ProjectController ..> Project : <<create>>
+InvoiceController ..> Invoice : <<create>>
+
+Project "0..*" --> "1" Client : client
+Invoice "0..*" --> "1" Project : project
+
+note as Problems
+  <b>Problems still in this code, and the pattern that fixes each</b>
+  ----
+  Invoice does too much (SRP): status rules, billing math,
+  fees/discounts and display text in one class.
+  * status if/else chain in changeStatus() (SRP, OCP, risk 1) -> <b>State</b>
+  * billingType switch in calculateTotal() and the
+    10-parameter constructor (OCP) -> <b>Strategy</b>
+  * hasLateFee/hasDiscount flags, and applyLateFee() does not
+    check the status, so a PAID invoice can get a fee (risk 2)
+    -> <b>Decorator</b> + <b>State</b>
+  Controllers call new Client/Project/Invoice themselves
+  (GRASP Creator, Low Coupling) -> <b>Factory Method</b>
+  main.js has to call renderInvoices() by hand after
+  every change -> <b>Observer</b>
+  Each controller creates its own LocalStorageHandler (DIP)
+  -> create it once in main.js and pass it in
+end note
+
+@enduml
